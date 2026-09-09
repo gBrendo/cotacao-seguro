@@ -442,7 +442,46 @@
         <span class="block-title">Dados do segurado</span>
       </div>
 
-      <div class="grid">
+      <div class="question-row">
+        <span class="qtext">Seguro novo ou renovação?<span class="req">*</span></span>
+        <div class="toggle-row" data-toggle-group="tipoSeguro">
+          <div class="toggle-btn" data-value="novo">Novo</div>
+          <div class="toggle-btn" data-value="renovacao">Renovação</div>
+        </div>
+      </div>
+
+      <div class="conditional" id="renovacaoFields">
+        <div class="grid">
+          <div class="field full">
+            <label for="seguradoraAtual">Seguradora atual</label>
+            <input type="text" id="seguradoraAtual" name="seguradoraAtual" placeholder="Ex: Porto Seguro, Azul, HDI...">
+          </div>
+          <div class="field">
+            <label for="classeBonus">Classe de bônus</label>
+            <select id="classeBonus" name="classeBonus">
+              <option value="" disabled selected>Selecione</option>
+              <option>Classe 0 (sem bônus)</option>
+              <option>Classe 1</option>
+              <option>Classe 2</option>
+              <option>Classe 3</option>
+              <option>Classe 4</option>
+              <option>Classe 5</option>
+              <option>Classe 6</option>
+              <option>Classe 7</option>
+              <option>Classe 8</option>
+              <option>Classe 9</option>
+              <option>Classe 10</option>
+              <option>Não sei</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fimVigencia">Fim de vigência da apólice</label>
+            <input type="date" id="fimVigencia" name="fimVigencia">
+          </div>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:22px;">
         <div class="field full">
           <label for="nome">Nome completo<span class="req">*</span></label>
           <input type="text" id="nome" name="nome" placeholder="Ex: Ana Carolina Ferreira Souza" required autocomplete="name">
@@ -649,6 +688,10 @@
           const cond = document.getElementById('condutorFields');
           cond.classList.toggle('show', btn.dataset.value === 'nao');
         }
+        if (name === 'tipoSeguro') {
+          const ren = document.getElementById('renovacaoFields');
+          ren.classList.toggle('show', btn.dataset.value === 'renovacao');
+        }
         updateState();
       };
       btn.addEventListener('click', activate);
@@ -686,6 +729,7 @@
     anoModelo: 'Ano do modelo'
   };
   const requiredToggles = {
+    tipoSeguro: 'Seguro novo ou renovação?',
     mesmoCondutor: 'Condutor principal é o segurado?',
     zeroKm: 'Veículo 0km?',
     garagem: 'Possui garagem?',
@@ -696,7 +740,6 @@
     condutorJovem: 'Condutores entre 18 e 25 anos?'
   };
 
-  const totalFields = requiredIds.length + Object.keys(requiredToggles).length + 1; // +1 for condutor sub-question completeness bucket
   const btnWhatsapp = document.getElementById('btnWhatsapp');
   const btnEmail = document.getElementById('btnEmail');
   const summaryBox = document.getElementById('summaryBox');
@@ -707,32 +750,42 @@
   const progressText = document.getElementById('progressText');
   const progressPct = document.getElementById('progressPct');
 
-  function getMissing() {
+  function computeState() {
     const missing = [];
-    requiredIds.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el.value || !el.value.trim()) missing.push(requiredLabels[id]);
-    });
-    Object.keys(requiredToggles).forEach(name => {
-      if (!toggleGroups[name]) missing.push(requiredToggles[name]);
-    });
-    if (toggleGroups.mesmoCondutor === 'nao') {
-      const condNome = document.getElementById('condutorNome').value.trim();
-      if (!condNome) missing.push('Nome do condutor principal');
-    }
-    return missing;
-  }
+    let total = 0;
+    let filled = 0;
 
-  function fieldsFilledCount() {
-    let n = 0;
-    requiredIds.forEach(id => { if (document.getElementById(id).value.trim()) n++; });
-    Object.keys(requiredToggles).forEach(name => { if (toggleGroups[name]) n++; });
+    requiredIds.forEach(id => {
+      total++;
+      const v = document.getElementById(id).value.trim();
+      if (v) filled++; else missing.push(requiredLabels[id]);
+    });
+
+    Object.keys(requiredToggles).forEach(name => {
+      total++;
+      if (toggleGroups[name]) filled++; else missing.push(requiredToggles[name]);
+    });
+
     if (toggleGroups.mesmoCondutor === 'nao') {
-      if (document.getElementById('condutorNome').value.trim()) n++;
-    } else if (toggleGroups.mesmoCondutor === 'sim') {
-      n++; // satisfied, no extra field needed
+      total++;
+      const v = document.getElementById('condutorNome').value.trim();
+      if (v) filled++; else missing.push('Nome do condutor principal');
     }
-    return n;
+
+    if (toggleGroups.tipoSeguro === 'renovacao') {
+      const renewalFields = [
+        ['seguradoraAtual', 'Seguradora atual'],
+        ['classeBonus', 'Classe de bônus'],
+        ['fimVigencia', 'Fim de vigência da apólice']
+      ];
+      renewalFields.forEach(([id, label]) => {
+        total++;
+        const v = document.getElementById(id).value.trim();
+        if (v) filled++; else missing.push(label);
+      });
+    }
+
+    return { missing, total, filled };
   }
 
   function buildMessage() {
@@ -740,6 +793,13 @@
     const yn = val => val === 'sim' ? 'Sim' : val === 'nao' ? 'Não' : '—';
     let lines = [];
     lines.push('*Cotação de Seguro Auto*');
+    lines.push('');
+    lines.push('Tipo de seguro: ' + (toggleGroups.tipoSeguro === 'novo' ? 'Novo' : toggleGroups.tipoSeguro === 'renovacao' ? 'Renovação' : '—'));
+    if (toggleGroups.tipoSeguro === 'renovacao') {
+      lines.push('  Seguradora atual: ' + (v('seguradoraAtual') || '—'));
+      lines.push('  Classe de bônus: ' + (v('classeBonus') || '—'));
+      lines.push('  Fim de vigência da apólice: ' + (v('fimVigencia') || '—'));
+    }
     lines.push('');
     lines.push('*Segurado*');
     lines.push('Nome: ' + v('nome'));
@@ -772,11 +832,10 @@
   }
 
   function updateState() {
-    const missing = getMissing();
-    const filled = fieldsFilledCount();
-    const pct = Math.round((filled / totalFields) * 100);
+    const { missing, total, filled } = computeState();
+    const pct = Math.round((filled / total) * 100);
     progressFill.style.width = pct + '%';
-    progressText.textContent = filled + ' de ' + totalFields + ' campos';
+    progressText.textContent = filled + ' de ' + total + ' campos';
     progressPct.textContent = pct + '%';
 
     if (missing.length === 0) {
